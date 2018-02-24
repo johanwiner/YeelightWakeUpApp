@@ -19,12 +19,14 @@ import android.widget.TextView;
 import android.widget.TimePicker;
 
 import java.util.Calendar;
+import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
 
     AlarmManager alarmManager;
     TimePicker alarmTimePicker;
     TextView alarmStatusTextbox;
+    TextView timeTextView;
     Context context;
     Button startAlarmButton;
     Button stopAlarmButton;
@@ -43,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
 
         //Don't know why we need this.
         this.context = this;
-
+/*
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -52,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
+*/
 
         /* --------------- Initialise ------------- */
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
@@ -59,10 +62,8 @@ public class MainActivity extends AppCompatActivity {
         //Initialise time picker
         alarmTimePicker = (TimePicker) findViewById(R.id.alarmTimePicker);
 
-        alarmStatusTextbox = findViewById(R.id.alarmStatusTextbox);
-
-        //Create an instance of a calender.
-        calender = Calendar.getInstance();
+        //alarmStatusTextbox = findViewById(R.id.alarmStatusTextbox);
+        timeTextView = findViewById(R.id.textView);
 
         //Create intent to Alarm_receiver class.
         myIntent = new Intent(this.context, Alarm_receiver.class);
@@ -72,15 +73,39 @@ public class MainActivity extends AppCompatActivity {
         startAlarmButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+
+                //Create an instance of a calender.
+                calender = Calendar.getInstance();
+
                 Log.e("Alarm On was clicked.", "");
+
+                //Reset calender to this day.
+                calender.set(Calendar.HOUR_OF_DAY,
+                        Calendar.getInstance().get(Calendar.HOUR_OF_DAY));
+                calender.set(Calendar.MINUTE,
+                        Calendar.getInstance().get(Calendar.MINUTE));
 
                 calender.set(Calendar.HOUR_OF_DAY, alarmTimePicker.getHour());
                 calender.set(Calendar.MINUTE, alarmTimePicker.getMinute());
 
+                Log.e("Time " + calender.getTime().toString(), " ");
+
+                long diff = calender.getTimeInMillis() - Calendar.getInstance().getTimeInMillis();
+
+                if (diff <= 0) {
+                    calender.set(Calendar.HOUR_OF_DAY, alarmTimePicker.getHour() + 24);
+                    calender.set(Calendar.MINUTE, alarmTimePicker.getMinute());
+                }
+
                 //Put extra string into intent, that says "alarm on".
                 myIntent.putExtra("extra", "alarm on");
 
-                setAlarmText("Alarm On");
+                String tmpTime = calender.getTime().toString();
+                tmpTime = tmpTime.substring(0,19);
+
+                //setAlarmText("Alarm On:     " + tmpTime);
+
+                setAlarmTimeText("Alarm On:  " + tmpTime);
 
                 //Create a pending intent that delays the intent
                 //until the specified calender time.
@@ -88,22 +113,22 @@ public class MainActivity extends AppCompatActivity {
                         myIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
                 //Set the alarm manager.
-                alarmManager.set(AlarmManager.RTC_WAKEUP, calender.getTimeInMillis(),
-                        pendingIntent);
+                alarmManager.set(AlarmManager.RTC_WAKEUP, calender.getTimeInMillis(), pendingIntent);
+
+                //calender.set(Calendar.HOUR_OF_DAY, alarmTimePicker.getHour() - 24);
             }
         });
-
 
         //Initialise stop alarm button
         stopAlarmButton = findViewById(R.id.stopAlarmButton);
         stopAlarmButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                setAlarmText("Alarm Off");
+                //setAlarmText("Alarm Off");
+                setAlarmTimeText("Alarm Off");
 
                 //Cancel the alarm
-                Log.e("Turned off an pending alarm intent", "");
-
+                Log.e("Turned off an pending alarm intent", "weeee");
 
                 //If user presses Alarm Off before alarm on.
                 if (pendingIntent != null) {
@@ -116,7 +141,6 @@ public class MainActivity extends AppCompatActivity {
                     sendBroadcast(myIntent);
                 }
             }
-
         });
     }
 
@@ -126,6 +150,10 @@ public class MainActivity extends AppCompatActivity {
     */
     public void setAlarmText(String s) {
         alarmStatusTextbox.setText(s);
+    }
+
+    public void setAlarmTimeText(String s) {
+        timeTextView.setText(s);
     }
 
     @Override
