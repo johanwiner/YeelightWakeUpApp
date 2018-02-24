@@ -9,6 +9,7 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -69,8 +70,12 @@ public class MainActivity extends AppCompatActivity {
         startAlarmButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+
                 calender.set(Calendar.HOUR_OF_DAY, alarmTimePicker.getHour());
                 calender.set(Calendar.MINUTE, alarmTimePicker.getMinute());
+
+                //Put extra string into intent, that says "alarm on".
+                myIntent.putExtra("extra", "alarm on");
 
                 setAlarmText("Alarm On");
 
@@ -94,9 +99,21 @@ public class MainActivity extends AppCompatActivity {
                 setAlarmText("Alarm Off");
 
                 //Cancel the alarm
-                alarmManager.cancel(pendingIntent);
+                Log.e("Turned off an pending alarm intent", "");
 
+
+                //If user presses Alarm Off before alarm on.
+                if (pendingIntent != null) {
+                    alarmManager.cancel(pendingIntent);
+
+                    //Put extra sting into intent, that says "alarm off".
+                    myIntent.putExtra("extra", "alarm off");
+
+                    //Stop the ringtone
+                    sendBroadcast(myIntent);
+                }
             }
+
         });
     }
 
