@@ -34,6 +34,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.e("Main: onCreate was called.", "");
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -70,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
         startAlarmButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                Log.e("Alarm On was clicked.", "");
 
                 calender.set(Calendar.HOUR_OF_DAY, alarmTimePicker.getHour());
                 calender.set(Calendar.MINUTE, alarmTimePicker.getMinute());
