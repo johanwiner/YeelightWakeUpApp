@@ -15,6 +15,7 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.TimePicker;
 
+import java.net.InetSocketAddress;
 import java.util.Calendar;
 import java.net.InetAddress;
 
@@ -176,39 +177,39 @@ public class MainActivity extends AppCompatActivity {
 
         Log.e("Sending: ", msg);
 
-        int broadcast_port = 1982;
-        String broadcast_ip = "239.255.255.250";
-        byte[] add = new byte[4];
-        add[0] = (byte)239;
-        add[1] = (byte)255;
-        add[2] = (byte)255;
-        add[3] = (byte)250;
+        int broadcast_port = 1900;
+        String broadcast_ip = "255.255.255.255";
 
         String re = "";
 
         try{
-            DatagramSocket s = new DatagramSocket();
             /* Yeelight sends broadcast message over UDP */
-
-            //Enabling broadcast?  Explicitly enable SO_BROADCAST for DatagramSocket
-            s.setBroadcast( true );
-
             /* Listen for yeelight broadcasting message */
-            //s.connect(InetAddress.getByAddress(add), 1982);
-            //Or to not use a specific IP
-            s = new DatagramSocket(broadcast_port);
-
             byte[] buf = new byte[100];
             DatagramPacket dgp = new DatagramPacket(buf, buf.length);
-
+            DatagramSocket s2 = new DatagramSocket(null);
+            s2.setBroadcast( true );
+            InetSocketAddress address = new InetSocketAddress(broadcast_ip, broadcast_port);
+            s2.bind(address);
             Log.e("Receiving data?: ", "waiting...");
             editText.setText("Receiving data?: ...");
-
+            s2.receive (dgp);
+            Log.e("Data received", "!!");
+            editText.setText("Data received!!");
+            s2.close();
+        /*
+            DatagramSocket s = new DatagramSocket();
+            s = new DatagramSocket(broadcast_port);
+            s.setBroadcast( true );
+            byte[] buf = new byte[100];
+            DatagramPacket dgp = new DatagramPacket(buf, buf.length);
+            Log.e("Receiving data?: ", "waiting...");
+            editText.setText("Receiving data?: ...");
             s.receive (dgp);
             Log.e("Data received", "!!");
             editText.setText("Data received!!");
-
             s.close();
+            */
             /*
             byte[] buf = msg.getBytes();
             InetAddress a = InetAddress.getByName(broadcast_ip);
@@ -223,7 +224,6 @@ public class MainActivity extends AppCompatActivity {
             }
             s.close();
             */
-
         }catch(Exception e){
             Log.e("Exception thrown, dude!!! ", "err", e);
         }
