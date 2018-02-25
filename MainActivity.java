@@ -5,8 +5,6 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -14,12 +12,16 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
-import android.widget.CalendarView;
 import android.widget.TextView;
 import android.widget.TimePicker;
 
 import java.util.Calendar;
-import java.util.Date;
+import java.net.InetAddress;
+
+/*   Android import   */
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+/* End Android import */
 
 public class MainActivity extends AppCompatActivity {
 
@@ -27,6 +29,7 @@ public class MainActivity extends AppCompatActivity {
     TimePicker alarmTimePicker;
     TextView alarmStatusTextbox;
     TextView timeTextView;
+    TextView editText; /* Yeelight */
     Context context;
     Button startAlarmButton;
     Button stopAlarmButton;
@@ -57,6 +60,10 @@ public class MainActivity extends AppCompatActivity {
 */
 
         /* --------------- Initialise ------------- */
+        editText = findViewById(R.id.editText); /* Yeelight*/
+        editText.setText("Yeelight app info");
+
+
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
 
         //Initialise time picker
@@ -116,6 +123,11 @@ public class MainActivity extends AppCompatActivity {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, calender.getTimeInMillis(), pendingIntent);
 
                 //calender.set(Calendar.HOUR_OF_DAY, alarmTimePicker.getHour() - 24);
+
+                //Wait for Yeelight broadcast message
+                String s = udp("Waiting");
+
+
             }
         });
 
@@ -144,17 +156,90 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    public void onResume(){
+        super.onResume();
+        //editText.setText(udp("u").replaceAll("[^0-9]",""));
+        editText.setText("Resumed");
+    }
+
     /*
     * @brief Function for setting the text of alarmStatusTextbox
     * @param s  String to set the in the alarmStatusTextbox.
     */
-    public void setAlarmText(String s) {
-        alarmStatusTextbox.setText(s);
-    }
-
     public void setAlarmTimeText(String s) {
         timeTextView.setText(s);
     }
+
+    /* --------------Yeelight functions------------ */
+    protected String udp(String msg){
+
+        Log.e("Sending: ", msg);
+
+        int broadcast_port = 1982;
+        String broadcast_ip = "239.255.255.250";
+        byte[] add = new byte[4];
+        add[0] = (byte)239;
+        add[1] = (byte)255;
+        add[2] = (byte)255;
+        add[3] = (byte)250;
+
+        String re = "";
+
+        try{
+            DatagramSocket s = new DatagramSocket();
+            /* Yeelight sends broadcast message over UDP */
+
+            //Enabling broadcast?  Explicitly enable SO_BROADCAST for DatagramSocket
+            s.setBroadcast( true );
+
+            /* Listen for yeelight broadcasting message */
+            //s.connect(InetAddress.getByAddress(add), 1982);
+            //Or to not use a specific IP
+            s = new DatagramSocket(broadcast_port);
+
+            byte[] buf = new byte[100];
+            DatagramPacket dgp = new DatagramPacket(buf, buf.length);
+
+            Log.e("Receiving data?: ", "waiting...");
+            editText.setText("Receiving data?: ...");
+
+            s.receive (dgp);
+            Log.e("Data received", "!!");
+            editText.setText("Data received!!");
+
+            s.close();
+            /*
+            byte[] buf = msg.getBytes();
+            InetAddress a = InetAddress.getByName(broadcast_ip);
+            DatagramPacket p = new DatagramPacket(buf, buf.length, a, broadcast_port);
+            s.send(p);
+            if(msg.charAt(0) == 'u'){
+                s.setSoTimeout(1000);
+                buf = new byte[16];
+                DatagramPacket rp = new DatagramPacket(buf, buf.length);
+                s.receive(rp);
+                re = new String(rp.getData());
+            }
+            s.close();
+            */
+
+        }catch(Exception e){
+            Log.e("Exception thrown, dude!!! ", "err", e);
+        }
+        return re;
+    }
+    public void toggle(View view) {
+        udp("t");
+    }
+    public void movie(View view) {
+        udp("m");
+    }
+    public void alarm(View view) {
+        String time = editText.getText().toString();
+        udp("a"+time);
+    }
+    /* ------------End Yeelight functions----------- */
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
