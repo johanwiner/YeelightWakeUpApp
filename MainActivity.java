@@ -18,6 +18,7 @@ import android.widget.TimePicker;
 import android.widget.Toast;
 
 import java.net.InetSocketAddress;
+import java.net.MulticastSocket;
 import java.util.Calendar;
 import java.net.InetAddress;
 
@@ -39,9 +40,6 @@ public class MainActivity extends AppCompatActivity {
     Calendar calender;
     Intent myIntent; //Path to Alarm_receiver.java
     PendingIntent pendingIntent;
-
-    WifiManager wifi;
-    WifiManager.WifiLock lock; //Lock for keeping wifi  receptor alive
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -181,21 +179,42 @@ public class MainActivity extends AppCompatActivity {
 
         Log.e("Sending: ", msg);
 
-        int broadcast_port = 1900;
-        String broadcast_ip = "255.255.255.255";
+        int broadcast_port = 1982;
+        String broadcast_ip = "239.255.255.250";
 
         String re = "";
 
-        wifi = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        if (wifi != null){
-            Toast.makeText(getApplicationContext(), "WifiLock create!", Toast.LENGTH_LONG).show();
-            lock = wifi.createWifiLock("mylock");
-            lock.acquire();
-        }
 
         try{
+            // join a Multicast group and send the group salutations
+            InetAddress group = InetAddress.getByName("239.255.255.250");
+            MulticastSocket s = new MulticastSocket(1982);
+            s.joinGroup(group);
+            /*
+            String msg = "Hello";
+            DatagramPacket hi = new DatagramPacket(msg.getBytes(), msg.length(),
+                    group, 1982);
+            s.send(hi);
+            */
+
             /* Yeelight sends broadcast message over UDP */
             /* Listen for yeelight broadcasting message */
+            // get responses!
+            byte[] buf = new byte[1000];
+            DatagramPacket recv = new DatagramPacket(buf, buf.length);
+
+            Log.e("Receiving data?: ", "waiting...");
+            editText.setText("Receiving data?: ...");
+
+            s.receive(recv);
+            Log.e("Data received", "!!");
+            editText.setText("Done receiving");
+
+            // OK, I'm done talking - leave the group...
+            s.leaveGroup(group);
+
+        /*
+            //Fungerar ok.
             byte[] buf = new byte[100];
             DatagramPacket dgp = new DatagramPacket(buf, buf.length);
             DatagramSocket s2 = new DatagramSocket(null);
@@ -208,7 +227,10 @@ public class MainActivity extends AppCompatActivity {
             Log.e("Data received", "!!");
             editText.setText("Data received!!");
             s2.close();
+
+        */
         /*
+            //Fungerar ok.
             DatagramSocket s = new DatagramSocket();
             s = new DatagramSocket(broadcast_port);
             s.setBroadcast( true );
@@ -221,26 +243,10 @@ public class MainActivity extends AppCompatActivity {
             editText.setText("Data received!!");
             s.close();
             */
-            /*
-            byte[] buf = msg.getBytes();
-            InetAddress a = InetAddress.getByName(broadcast_ip);
-            DatagramPacket p = new DatagramPacket(buf, buf.length, a, broadcast_port);
-            s.send(p);
-            if(msg.charAt(0) == 'u'){
-                s.setSoTimeout(1000);
-                buf = new byte[16];
-                DatagramPacket rp = new DatagramPacket(buf, buf.length);
-                s.receive(rp);
-                re = new String(rp.getData());
-            }
-            s.close();
-            */
+
         }catch(Exception e){
             Log.e("Exception thrown, dude!!! ", "err", e);
         }
-
-        //Release wifi receptor lock.
-        lock.release();
 
         return re;
     }
