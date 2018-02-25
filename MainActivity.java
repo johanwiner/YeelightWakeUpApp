@@ -4,6 +4,7 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -14,6 +15,7 @@ import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.TimePicker;
+import android.widget.Toast;
 
 import java.net.InetSocketAddress;
 import java.util.Calendar;
@@ -37,6 +39,9 @@ public class MainActivity extends AppCompatActivity {
     Calendar calender;
     Intent myIntent; //Path to Alarm_receiver.java
     PendingIntent pendingIntent;
+
+    WifiManager wifi;
+    WifiManager.WifiLock lock; //Lock for keeping wifi  receptor alive
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -172,7 +177,6 @@ public class MainActivity extends AppCompatActivity {
         timeTextView.setText(s);
     }
 
-    /* --------------Yeelight functions------------ */
     protected String udp(String msg){
 
         Log.e("Sending: ", msg);
@@ -181,6 +185,13 @@ public class MainActivity extends AppCompatActivity {
         String broadcast_ip = "255.255.255.255";
 
         String re = "";
+
+        wifi = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        if (wifi != null){
+            Toast.makeText(getApplicationContext(), "WifiLock create!", Toast.LENGTH_LONG).show();
+            lock = wifi.createWifiLock("mylock");
+            lock.acquire();
+        }
 
         try{
             /* Yeelight sends broadcast message over UDP */
@@ -227,19 +238,12 @@ public class MainActivity extends AppCompatActivity {
         }catch(Exception e){
             Log.e("Exception thrown, dude!!! ", "err", e);
         }
+
+        //Release wifi receptor lock.
+        lock.release();
+
         return re;
     }
-    public void toggle(View view) {
-        udp("t");
-    }
-    public void movie(View view) {
-        udp("m");
-    }
-    public void alarm(View view) {
-        String time = editText.getText().toString();
-        udp("a"+time);
-    }
-    /* ------------End Yeelight functions----------- */
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
