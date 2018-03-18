@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.StrictMode;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -17,14 +18,19 @@ import android.widget.TextView;
 import android.widget.TimePicker;
 import android.widget.Toast;
 
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
+import java.net.Socket;
 import java.util.Calendar;
 import java.net.InetAddress;
 
 /*   Android import   */
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
+import java.util.HashMap;
 /* End Android import */
 
 public class MainActivity extends AppCompatActivity {
@@ -33,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
     TimePicker alarmTimePicker;
     TextView alarmStatusTextbox;
     TextView timeTextView;
-    TextView editText; /* Yeelight */
+    TextView editText;
     Context context;
     Button startAlarmButton;
     Button stopAlarmButton;
@@ -41,12 +47,27 @@ public class MainActivity extends AppCompatActivity {
     Intent myIntent; //Path to Alarm_receiver.java
     PendingIntent pendingIntent;
 
+    /* Yeelight specific data. */
+    int broadcast_port = 1982;
+    String broadcast_ip = "239.255.255.250";
+
+    private BufferedOutputStream mBos;
+    private Socket mSocket;
+    private BufferedReader mReader;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.e("Main: onCreate was called.", "");
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        //Johan Ju
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        StrictMode.setThreadPolicy(policy);
+
+
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
@@ -112,7 +133,7 @@ public class MainActivity extends AppCompatActivity {
                 myIntent.putExtra("extra", "alarm on");
 
                 String tmpTime = calender.getTime().toString();
-                tmpTime = tmpTime.substring(0,19);
+                tmpTime = tmpTime.substring(0, 19);
 
                 //setAlarmText("Alarm On:     " + tmpTime);
 
@@ -129,9 +150,10 @@ public class MainActivity extends AppCompatActivity {
                 //calender.set(Calendar.HOUR_OF_DAY, alarmTimePicker.getHour() - 24);
 
                 //Wait for Yeelight broadcast message
-                String s = udp("Waiting");
+                //String s = receive_udp("Waiting");
 
-
+                //establish_connection();
+                searchDevice();
             }
         });
 
@@ -161,9 +183,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onResume(){
+    public void onResume() {
         super.onResume();
-        //editText.setText(udp("u").replaceAll("[^0-9]",""));
+        //editText.setText(receive_udp("u").replaceAll("[^0-9]",""));
         editText.setText("Resumed");
     }
 
@@ -175,45 +197,235 @@ public class MainActivity extends AppCompatActivity {
         timeTextView.setText(s);
     }
 
-    protected String udp(String msg){
-
-        Log.e("Sending: ", msg);
-
-        int broadcast_port = 1982;
-        String broadcast_ip = "239.255.255.250";
+    /*
+    * @brief Function for sending UDP messages.
+    *
+    * @note  This is the search response, the location will tell you the IP and port ************************************
+    *           the bulb is listening, you should establish a TCP socket to this
+    *           location and then send command through that socket.
+    *
+    *           The dynamic discover used a SSDP like protocol. You can send a
+    *           multi-cast request to local network and will get response from
+    *           bulbs. The request and response are encoded in HTTP format but
+    *           are transferred through UDP.
+    *
+    *           After discovering the bulb, you can establish a TCP connection
+    *           to the bulb and control and monitor the bulb through control
+    *           requests which is encoded in JSON.
+    *
+    * @param s: String to send.
+    */
+    protected String establish_connection () {
+        Log.e("establish_connection", "here");
 
         String re = "";
 
 
-        try{
+        /* 1 - Send udp multicast. */
+        /* 2 - Receive udp package containing IP. */
+        /* 3 - Set up TCP connection to the IP. */
+
+        Log.e("mSocket is Connected", "here");
+            try{
+                String msg = "u\r\n";
+
+            DatagramSocket ss = new DatagramSocket();
+            byte[] buf = msg.getBytes();
+            //InetAddress a = InetAddress.getByName("192.168.0.4");
+            InetAddress a = InetAddress.getByName("192.168.1.170");
+            DatagramPacket p = new DatagramPacket(buf, buf.length, a, 55443);
+            Log.e("Sending packet", "here");
+            ss.send(p);
+            Log.e("Packet sent", "here");
+            if(msg.charAt(0) == 'u'){
+                ss.setSoTimeout(3000);
+                buf = new byte[16];
+                DatagramPacket rp = new DatagramPacket(buf, buf.length);
+                ss.receive(rp);
+                re = new String(rp.getData());
+                Log.e("Packet received ", re);
+
+            }
+            ss.close();
+        }catch(Exception e){
+            Log.e("test", "err", e);
+        }
+
+        try {
+
+
             // join a Multicast group and send the group salutations
-            InetAddress group = InetAddress.getByName("239.255.255.250");
-            MulticastSocket s = new MulticastSocket(1982);
+            InetAddress group = InetAddress.getByName(broadcast_ip);
+            MulticastSocket s = new MulticastSocket(broadcast_port);
             s.joinGroup(group);
+
+
+            while (true) {
+                //Loop in case we have no internet connection.
+                try {
+                    // Enabling connecting to sockets in mainThread
+                    StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder()
+                            .permitAll().build();
+                    StrictMode.setThreadPolicy(policy);
+
+                    //Connection here:
+                    mSocket = new Socket(InetAddress.getByName(broadcast_ip), broadcast_port);
+                    mSocket.setKeepAlive(true);
+                    mBos = new BufferedOutputStream(mSocket.getOutputStream());
+                    mReader = new BufferedReader(new InputStreamReader(mSocket.getInputStream()));
+
+                    if (mSocket.isConnected()) {
+                        Log.e("mSocket is Connected", "here");
+                    } else {
+                        Log.e("mSocket is not Connected", "here");
+                    }
+
+                    while (true) {
+                        Log.e("Todo: Break while true", "here");
+                        try {
+                            String value = mReader.readLine();
+                            Log.e("est_c read value = ", value);
+                            break;
+                        } catch (Exception e) {
+                            //Empty
+                        }
+                    }
+                    //We break out from the internet connection while-loop.
+                    break;
+                } catch (Exception e) {
+                    Log.e("estab_conn", "Exception at connect");
+                    e.printStackTrace();
+                }
+            }
+
+
             /*
             String msg = "Hello";
             DatagramPacket hi = new DatagramPacket(msg.getBytes(), msg.length(),
-                    group, 1982);
+                   group, broadcast_port);
             s.send(hi);
             */
-
-            /* Yeelight sends broadcast message over UDP */
-            /* Listen for yeelight broadcasting message */
-            // get responses!
+            /*Fungerar ok, senast testad mot router broadcasts 2018-03-04 */
+            // Yeelight sends broadcast message over UDP
+            // Listen for yeelight broadcasting message
             byte[] buf = new byte[1000];
             DatagramPacket recv = new DatagramPacket(buf, buf.length);
-
             Log.e("Receiving data?: ", "waiting...");
             editText.setText("Receiving data?: ...");
-
             s.receive(recv);
             Log.e("Data received", "!!");
             editText.setText("Done receiving");
-
-            // OK, I'm done talking - leave the group...
             s.leaveGroup(group);
+        } catch (Exception e) {
+                Log.e("estab_conn", "Exception at connect");
+                e.printStackTrace();
+        }
+        return re;
+    }
+
+    private static final String message = "M-SEARCH * HTTP/1.1\r\n" +
+            "HOST:239.255.255.250:1982\r\n" +
+            "MAN:\"ssdp:discover\"\r\n" +
+            "ST:wifi_bulb\r\n";
+
+    private void searchDevice() {
+        Log.e("Call to searchDevice", " was made.");
 
         /*
+        mDeviceList.clear();
+        mAdapter.notifyDataSetChanged();
+        mSeraching = true;
+        mSearchThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+    */
+                try {
+                    DatagramSocket mDSocket = new DatagramSocket();
+                    DatagramPacket dpSend = new DatagramPacket(message.getBytes(),
+                            message.getBytes().length, InetAddress.getByName(broadcast_ip),
+                            broadcast_port);
+                    //mDSocket.send(dpSend);
+                    //mHandler.sendEmptyMessageDelayed(MSG_STOP_SEARCH,2000);
+                    //while (mSeraching) {
+
+                    while (true) {
+                        Log.e("Entering while looop in searchDevice", ".");
+                        android.os.SystemClock.sleep(1000);
+
+                        mDSocket.send(dpSend);
+
+                        //TODO Break out of the loop some time
+                        byte[] buf = new byte[1024];
+                        DatagramPacket dpRecv = new DatagramPacket(buf, buf.length);
+
+                        mDSocket.receive(dpRecv);
+                        Log.e("Received a packet in searchDevice", ".");
+
+                        byte[] bytes = dpRecv.getData();
+                        StringBuffer buffer = new StringBuffer();
+                        for (int i = 0; i < dpRecv.getLength(); i++) {
+                            // parse /r
+                            if (bytes[i] == 13) {
+                                continue;
+                            }
+                            buffer.append((char) bytes[i]);
+                        }
+                        Log.d("socket", "got message:" + buffer.toString());
+                        if (!buffer.toString().contains("yeelight")) {
+                            //mHandler.obtainMessage(0, "收到一条消息,不是Yeelight灯泡").sendToTarget();
+                            return;
+                        }
+                        String[] infos = buffer.toString().split("\n");
+                        HashMap<String, String> bulbInfo = new HashMap<String, String>();
+                        for (String str : infos) {
+                            int index = str.indexOf(":");
+                            if (index == -1) {
+                                continue;
+                            }
+                            String title = str.substring(0, index);
+                            String value = str.substring(index + 1);
+                            bulbInfo.put(title, value);
+                        }
+                        /*
+                        if (!hasAdd(bulbInfo)){
+                            mDeviceList.add(bulbInfo);
+                        }
+                        */
+                    }
+                    //mHandler.sendEmptyMessage(MSG_DISCOVER_FINISH);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+    }
+
+    /*
+    * @brief Function for receiving UDP messages.
+    * @param s  String to sent.
+    */
+    protected String receive_udp(String msg) {
+
+        String re = "";
+
+        try {
+            // join a Multicast group and send the group salutations
+            InetAddress group = InetAddress.getByName(broadcast_ip);
+            MulticastSocket s = new MulticastSocket(broadcast_port);
+            s.joinGroup(group);
+
+/*
+            //Fungerar ok, senast testad mot router broadcasts 2018-03-04
+            // Yeelight sends broadcast message over UDP
+            // Listen for yeelight broadcasting message
+            byte[] buf = new byte[1000];
+            DatagramPacket recv = new DatagramPacket(buf, buf.length);
+            Log.e("Receiving data?: ", "waiting...");
+            editText.setText("Receiving data?: ...");
+            s.receive(recv);
+            Log.e("Data received", "!!");
+            editText.setText("Done receiving");
+            s.leaveGroup(group);
+
+*/
             //Fungerar ok.
             byte[] buf = new byte[100];
             DatagramPacket dgp = new DatagramPacket(buf, buf.length);
@@ -228,7 +440,7 @@ public class MainActivity extends AppCompatActivity {
             editText.setText("Data received!!");
             s2.close();
 
-        */
+
         /*
             //Fungerar ok.
             DatagramSocket s = new DatagramSocket();
@@ -244,12 +456,15 @@ public class MainActivity extends AppCompatActivity {
             s.close();
             */
 
-        }catch(Exception e){
+        } catch (Exception e) {
             Log.e("Exception thrown, dude!!! ", "err", e);
         }
 
         return re;
     }
+
+
+//End of discovery function.
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
